@@ -1,11 +1,390 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>行算 - 多行计算器</title>
+    <style>
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+            -webkit-tap-highlight-color:rgba(0,0,0,0);
+            font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft Yahei",sans-serif;
+        }
+        html,body{
+            width:100%;
+            height:100vh;
+            background:#f8fafc;
+            overscroll-behavior:none;
+            overflow:hidden;
+        }
+        body{
+            display:flex;
+            flex-direction:column;
+            padding-top:env(safe-area-inset-top);
+            padding-bottom:env(safe-area-inset-bottom);
+        }
+        .calc-wrapper{
+            flex:1;
+            width:100%;
+            display:flex;
+            flex-direction:column;
+            padding:16px 20px;
+        }
+        .calc-title{
+            text-align:center;
+            margin:10px 0 16px;
+            font-size:24px;
+            font-weight:600;
+            color:#1e293b;
+        }
+        .calc-list-container{
+            flex:1;
+            overflow-y:auto;
+            overscroll-behavior:contain;
+            margin-bottom:16px;
+            padding-right:6px;
+        }
+        .calc-item{
+            padding:14px 18px;
+            margin-bottom:12px;
+            background:#ffffff;
+            border-radius:12px;
+            border:1px solid #e2e8f0;
+            cursor:pointer;
+            transition:all 0.2s ease;
+        }
+        .calc-item.active{
+            border-color:#3b82f6;
+            background:#eff6ff;
+            box-shadow:0 0 0 2px #3b82f633;
+        }
+        .calc-formula{
+            font-size:20px;
+            line-height:1.4;
+            color:#1e293b;
+            margin-bottom:6px;
+            white-space:pre-wrap;
+            word-break:break-all;
+            min-height:28px;
+            user-select:text;
+        }
+        .calc-formula .cursor{
+            display:none;
+            width:1.5px;
+            height:1.2em;
+            background-color:#1e293b;
+            margin-left:-1px;
+            animation:blink 1s step-end infinite;
+            vertical-align:middle;
+        }
+        .calc-item.active .calc-formula .cursor{
+            display:inline-block;
+        }
+        @keyframes blink{
+            50%{opacity:0;}
+        }
+        .calc-result{
+            font-size:24px;
+            font-weight:700;
+            line-height:1.4;
+            color:#3b82f6;
+            user-select:none;
+            min-height:32px;
+        }
+        /* 优化新增/删除按钮的颜色、大小和位置 */
+        .btn-group{
+            display:flex;
+            gap:32px;
+            justify-content:center;
+            margin:12px 0;
+        }
+        .add-row,.del-row{
+            height:36px;
+            padding:0 16px;
+            border:none;
+            border-radius:18px;
+            font-size:14px;
+            font-weight:500;
+            color:#ffffff;
+            cursor:pointer;
+            transition:background 0.2s ease;
+        }
+        .add-row{
+            background:#ecfdf5;
+            color:#10b981;
+            border:1px solid #a7f3d0;
+        }
+        .add-row:active{
+            background:#d1fae5;
+        }
+        .del-row{
+            background:#fef2f2;
+            color:#ef4444;
+            border:1px solid #fecaca;
+        }
+        .del-row:active{
+            background:#fee2e2;
+        }
+        .keypad{
+            display:grid;
+            grid-template-columns:repeat(4,1fr);
+            gap:12px;
+            padding:20px;
+            padding-bottom:calc(20px + env(safe-area-inset-bottom));
+            background:#ffffff;
+            border-radius:20px 20px 0 0;
+            box-shadow:0 -2px 16px rgba(0,0,0,0.08);
+            width:100%;
+            margin-top:auto;
+        }
+        .key{
+            width:100%;
+            aspect-ratio:1/1;
+            max-width:64px;
+            max-height:64px;
+            min-width:40px;
+            min-height:40px;
+            border:1px solid #e2e8f0;
+            border-radius:50%;
+            font-size:20px;
+            font-weight:600;
+            background:#f8fafc;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            cursor:pointer;
+            transition:background 0.15s ease;
+            justify-self:center;
+            user-select:none;
+        }
+        .key:active{
+            background:#e2e8f0;
+            border-color:#cbd5e1;
+        }
+        .key.opt{
+            color:#3b82f6;
+            background:#eff6ff;
+            border-color:#bfdbfe;
+        }
+        .key.opt:active{
+            background:#dbeafe;
+        }
+        /* 你要的经典竖长条大圆角等号 */
+        .key.eq{
+            background:#3b82f6;
+            color:#ffffff;
+            border:none;
+            grid-row: span 2;
+            border-radius:32px;
+            width:100%;
+            height:100%;
+            max-height:none;
+            aspect-ratio:unset;
+            font-size:24px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }
+        .key.eq:active{
+            background:#2563eb;
+        }
+        .key.del,.key.clear{
+            color:#3b82f6;
+            background:#eff6ff;
+            border-color:#bfdbfe;
+        }
+        .key.del:active,.key.clear:active{
+            background:#dbeafe;
+        }
+    </style>
+</head>
+<body>
+<div class="calc-wrapper">
+    <h2 class="calc-title">行算 - 多行计算器</h2>
+    <div class="calc-list-container" id="calcList">
+        <div class="calc-item active">
+            <div class="calc-formula"><span class="cursor"></span></div>
+            <div class="calc-result">0</div>
+        </div>
+    </div>
+    <div class="btn-group">
+        <button class="add-row">新增计算行</button>
+        <button class="del-row">删除当前行</button>
+    </div>
+</div>
+<div class="keypad">
+    <button class="key clear">C</button>
+    <button class="key opt">÷</button>
+    <button class="key opt">×</button>
+    <button class="key del">←</button>
+    <button class="key num">7</button>
+    <button class="key num">8</button>
+    <button class="key num">9</button>
+    <button class="key opt">-</button>
+    <button class="key num">4</button>
+    <button class="key num">5</button>
+    <button class="key num">6</button>
+    <button class="key opt">+</button>
+    <button class="key num">1</button>
+    <button class="key num">2</button>
+    <button class="key num">3</button>
+    <button class="key eq">=</button>
+    <button class="key bracket">()</button>
+    <button class="key num">0</button>
+    <button class="key num">.</button>
+</div>
+
+<script>
+let audioCtx;
+function playFeedback() {
+    if (navigator.vibrate) navigator.vibrate(15);
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.05);
+    } catch(e) {}
+}
+
+let activeItem = document.querySelector('.calc-item.active');
+let formulaEl = activeItem.querySelector('.calc-formula');
+let resultEl = activeItem.querySelector('.calc-result');
+let bracketState = 'left';
+let caretPos = 0;
+let formulaText = '';
+
+function renderFormula() {
+    const part1 = formulaText.slice(0, caretPos);
+    const part2 = formulaText.slice(caretPos);
+    formulaEl.innerHTML = `${part1}<span class="cursor"></span>${part2}`;
+}
+
+function setCaretPosFromClick(e) {
+    if (!activeItem.classList.contains('active')) return;
+    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (!range) return;
+    const offset = range.startOffset;
+    const fullText = (formulaEl.textContent || "").replace(/\u200B/g, "").trim();
+    formulaText = fullText;
+    caretPos = Math.max(0, Math.min(offset, fullText.length));
+    renderFormula();
+}
+
+function switchActive(item) {
+    document.querySelectorAll('.calc-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    activeItem = item;
+    formulaEl = item.querySelector('.calc-formula');
+    resultEl = item.querySelector('.calc-result');
+    formulaText = (formulaEl.textContent || "").replace(/\u200B/g, "").trim();
+    caretPos = formulaText.length;
+    renderFormula();
+}
+
+function bindItemEvents() {
+    document.querySelectorAll('.calc-item').forEach(item => {
+        item.onclick = function () {
+            switchActive(item);
+        };
+        const fml = item.querySelector('.calc-formula');
+        fml.onclick = function (e) {
+            e.stopPropagation();
+            setCaretPosFromClick(e);
+        };
+    });
+}
+
+bindItemEvents();
+
+document.querySelectorAll('.key.num,.key.opt').forEach(btn => {
+    btn.onclick = function () {
+        const val = btn.textContent.trim();
+        formulaText = formulaText.slice(0, caretPos) + val + formulaText.slice(caretPos);
+        caretPos++;
+        renderFormula();
+    }
+});
+
+document.querySelector('.key.bracket').onclick = function () {
+    const char = bracketState === 'left' ? '(' : ')';
+    formulaText = formulaText.slice(0, caretPos) + char + formulaText.slice(caretPos);
+    caretPos++;
+    bracketState = bracketState === 'left' ? 'right' : 'left';
+    renderFormula();
+};
+
+document.querySelector('.key.del').onclick = function () {
+    if (caretPos <= 0 || formulaText.length === 0) return;
+    formulaText = formulaText.slice(0, caretPos - 1) + formulaText.slice(caretPos);
+    caretPos--;
+    renderFormula();
+};
+
+document.querySelector('.key.clear').onclick = function () {
+    formulaText = '';
+    caretPos = 0;
+    resultEl.textContent = '0';
+    bracketState = 'left';
+    renderFormula();
+};
+
+document.querySelector('.key.eq').onclick = function () {
+    if (!formulaText) return;
+    const exp = formulaText.replace(/×/g, '*').replace(/÷/g, '/');
+    try {
+        const res = eval(exp);
+        resultEl.textContent = res;
+    } catch (e) {
+        resultEl.textContent = '错误';
+    }
+};
+
+document.querySelector('.add-row').onclick = function () {
+    const wrap = document.getElementById('calcList');
+    const div = document.createElement('div');
+    div.className = 'calc-item';
+    div.innerHTML = `
+        <div class="calc-formula"><span class="cursor"></span></div>
+        <div class="calc-result">0</div>
+    `;
+    wrap.appendChild(div);
+    bindItemEvents();
+    switchActive(div);
+    setTimeout(() => {
+        wrap.scrollTo({
+            top: wrap.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 100);
+};
+
+document.querySelector('.del-row').onclick = function () {
+    const all = document.querySelectorAll('.calc-item');
+    if (all.length <= 1) {
+        alert('至少保留一行计算区域');
+        return;
+    }
+    activeItem.remove();
+    switchActive(document.querySelector('.calc-item'));
+    bindItemEvents();
+};
+
+renderFormula();
+
+document.querySelectorAll('button, .key').forEach(btn => {
+    btn.addEventListener('click', playFeedback);
+});
+</script>
+</body>
 </html>
