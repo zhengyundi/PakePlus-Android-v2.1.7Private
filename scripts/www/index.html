@@ -1,11 +1,392 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>WiFi点对点聊天</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: #0F172A;
+      color: #F1F5F9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* 顶部导航 */
+    .top-bar {
+      background: #1E293B;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #334155;
+    }
+    .top-bar h1 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .room-info {
+      font-size: 13px;
+      color: #94A3B8;
+    }
+    /* 在线用户栏 */
+    .peers-bar {
+      background: #1E293B;
+      padding: 8px 16px;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      border-bottom: 1px solid #334155;
+    }
+    .peer-item {
+      padding: 6px 12px;
+      background: #334155;
+      border-radius: 16px;
+      font-size: 13px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .peer-item.active {
+      background: #3B82F6;
+    }
+    /* 消息区 */
+    .messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      line-height: 1.4;
+      position: relative;
+    }
+    .msg.other {
+      background: #1E293B;
+      align-self: flex-start;
+    }
+    .msg.self {
+      background: #3B82F6;
+      color: white;
+      align-self: flex-end;
+    }
+    .msg-name {
+      font-size: 12px;
+      color: #94A3B8;
+      margin-bottom: 4px;
+    }
+    .msg-img {
+      max-width: 200px;
+      border-radius: 12px;
+      margin-top: 4px;
+    }
+    /* 输入区 */
+    .input-bar {
+      background: #1E293B;
+      padding: 10px;
+      display: flex;
+      gap: 8px;
+      border-top: 1px solid #334155;
+    }
+    #img-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 22px;
+      background: #334155;
+      border: none;
+      color: #F1F5F9;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #msg-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 22px;
+      background: #334155;
+      color: #F1F5F9;
+      outline: none;
+      font-size: 15px;
+    }
+    #send-btn {
+      padding: 0 20px;
+      height: 44px;
+      border-radius: 22px;
+      background: #3B82F6;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #send-btn:active {
+      opacity: 0.8;
+    }
+    /* 房间选择弹窗 */
+    .room-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .room-box {
+      background: #1E293B;
+      padding: 24px;
+      border-radius: 16px;
+      width: 80%;
+      max-width: 320px;
+    }
+    .room-box h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .room-input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      background: #334155;
+      border: none;
+      color: #F1F5F9;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    .room-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      background: #3B82F6;
+      color: white;
+      border: none;
+      font-weight: 600;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    /* 滚动条美化 */
+    .messages::-webkit-scrollbar, .peers-bar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .messages::-webkit-scrollbar-thumb, .peers-bar::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 2px;
+    }
+    /* 隐藏文件输入 */
+    #file-input {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- 顶部栏 -->
+  <div class="top-bar">
+    <h1>WiFi点对点聊天</h1>
+    <div class="room-info" id="room-display">房间：公共大厅</div>
+  </div>
+
+  <!-- 在线用户 -->
+  <div class="peers-bar" id="peers-list">
+    <div class="peer-item active" onclick="switchChat('public')">公共大厅</div>
+  </div>
+
+  <!-- 消息区 -->
+  <div class="messages" id="msg-container"></div>
+
+  <!-- 输入区 -->
+  <div class="input-bar">
+    <button id="img-btn" onclick="document.getElementById('file-input').click()">📷</button>
+    <input type="file" id="file-input" accept="image/*" onchange="sendImage()">
+    <input type="text" id="msg-input" placeholder="输入消息...">
+    <button id="send-btn" onclick="sendMessage()">发送</button>
+  </div>
+
+  <!-- 房间选择弹窗 -->
+  <div class="room-modal" id="room-modal" style="display:none">
+    <div class="room-box">
+      <h2>选择房间</h2>
+      <input type="text" class="room-input" id="room-input" placeholder="输入房间号">
+      <button class="room-btn" onclick="joinRoom()">加入房间</button>
+      <button class="room-btn" onclick="createRoom()">创建房间</button>
+      <button class="room-btn" style="background:#475569" onclick="closeRoomModal()">取消</button>
+    </div>
+  </div>
+
+  <script>
+    // 全局配置
+    const msgContainer = document.getElementById('msg-container');
+    const msgInput = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
+    const peersList = document.getElementById('peers-list');
+    const roomDisplay = document.getElementById('room-display');
+    const roomModal = document.getElementById('room-modal');
+    const roomInput = document.getElementById('room-input');
+
+    const myId = Math.random().toString(36).slice(2, 10);
+    let currentChat = 'public'; // 当前聊天对象：public 或 对方ID
+    let currentRoom = 'public'; // 当前房间
+    const peers = new Map(); // 存储所有连接
+    const peerNames = new Map(); // 存储用户昵称
+
+    // ========== 房间管理 ==========
+    function openRoomModal() {
+      roomModal.style.display = 'flex';
+    }
+    function closeRoomModal() {
+      roomModal.style.display = 'none';
+    }
+    function createRoom() {
+      const room = roomInput.value.trim() || Math.random().toString(36).slice(2, 8);
+      joinRoom(room);
+    }
+    function joinRoom(room = null) {
+      room = room || roomInput.value.trim();
+      if (!room) return;
+      currentRoom = room;
+      roomDisplay.textContent = `房间：${room}`;
+      closeRoomModal();
+      addSystemMsg(`已进入房间：${room}`);
+    }
+
+    // ========== 切换聊天（公共/私聊） ==========
+    function switchChat(targetId) {
+      currentChat = targetId;
+      // 更新选中状态
+      document.querySelectorAll('.peer-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      // 清空输入框
+      msgInput.value = '';
+    }
+
+    // ========== 发送消息 ==========
+    function sendMessage() {
+      const text = msgInput.value.trim();
+      if (!text) return;
+      // 构造消息
+      const msg = {
+        type: 'text',
+        from: myId,
+        name: '用户', // 可改为自定义昵称
+        room: currentRoom,
+        target: currentChat,
+        content: text
+      };
+      // 发送给所有连接
+      broadcast(msg);
+      // 本地显示
+      addMessage(msg, true);
+      msgInput.value = '';
+    }
+
+    // ========== 发送图片 ==========
+    function sendImage() {
+      const file = document.getElementById('file-input').files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const msg = {
+          type: 'image',
+          from: myId,
+          name: '用户',
+          room: currentRoom,
+          target: currentChat,
+          content: e.target.result
+        };
+        broadcast(msg);
+        addMessage(msg, true);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ========== 广播消息 ==========
+    function broadcast(msg) {
+      peers.forEach(({ dc }) => {
+        if (dc.readyState === 'open') {
+          dc.send(JSON.stringify(msg));
+        }
+      });
+    }
+
+    // ========== 添加消息到界面 ==========
+    function addMessage(msg, isSelf) {
+      // 只显示当前房间和当前聊天对象的消息
+      if (msg.room !== currentRoom || msg.target !== currentChat) return;
+      
+      const div = document.createElement('div');
+      div.className = `msg ${isSelf ? 'self' : 'other'}`;
+      
+      if (!isSelf) {
+        const nameSpan = document.createElement('div');
+        nameSpan.className = 'msg-name';
+        nameSpan.textContent = msg.name;
+        div.appendChild(nameSpan);
+      }
+      
+      if (msg.type === 'text') {
+        const textSpan = document.createElement('div');
+        textSpan.textContent = msg.content;
+        div.appendChild(textSpan);
+      } else if (msg.type === 'image') {
+        const img = document.createElement('img');
+        img.src = msg.content;
+        img.className = 'msg-img';
+        div.appendChild(img);
+      }
+      
+      msgContainer.appendChild(div);
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    // ========== 系统消息 ==========
+    function addSystemMsg(text) {
+      const div = document.createElement('div');
+      div.style.textAlign = 'center';
+      div.style.color = '#94A3B8';
+      div.style.fontSize = '12px';
+      div.style.margin = '8px 0';
+      div.textContent = text;
+      msgContainer.appendChild(div);
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    // ========== 初始化 ==========
+    // 绑定回车发送
+    msgInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // 长按顶部栏打开房间选择
+    document.querySelector('.top-bar').addEventListener('longpress', openRoomModal);
+    document.querySelector('.top-bar').addEventListener('click', e => {
+      if (e.target === document.querySelector('.top-bar h1')) openRoomModal();
+    });
+
+    // 模拟自动发现（打包APP后替换为原生UDP）
+    function startDiscovery() {
+      addSystemMsg('正在搜索同一WiFi下的设备...');
+      // 这里预留原生UDP发现接口
+    }
+
+    // 启动
+    startDiscovery();
+  </script>
+</body>
 </html>
